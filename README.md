@@ -1,5 +1,30 @@
-# quill-helper
-A helper app designed to assist with writing projects, homework or anything simmilar.
+# React + TypeScript + Vite
 
-# why quill-heper
-I wanted to have a side-project to work on and I also wanted to design an app for a problem I am facing. So in comes quill-hepler. The idea is this is a completely private localy-run system that can assists its user in homework or writing by providing insight, helping with requirements and knowledge about concepts that might be helpful to the user. While the project is till at its early stage I have a few ideas that i will slowlly start introducing. The app is to remain open-source and free, I am making it for myself but I don't mind anyone using it if they see it as valuable. 
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+
+- Configure the top-level `parserOptions` property like this:
+
+```js
+export default {
+  // other rules...
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+    project: ['./tsconfig.json', './tsconfig.node.json'],
+    tsconfigRootDir: __dirname,
+  },
+}
+```
+
+- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
+- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
+- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
