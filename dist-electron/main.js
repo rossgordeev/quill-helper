@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain } from "electron";
-import { dirname, join } from "path";
+import { app, ipcMain, BrowserWindow } from "electron";
 import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import fs, { promises } from "node:fs";
 import { resolve } from "node:path";
 var g = typeof globalThis !== "undefined" && globalThis || typeof self !== "undefined" && self || // eslint-disable-next-line no-undef
@@ -1019,54 +1019,85 @@ class Ollama2 extends Ollama$1 {
   }
 }
 const index = new Ollama2();
-async function OllamaChat(prompt) {
+async function OllamaChat(message, model) {
   try {
     const response = await index.chat({
-      model: "llama3",
-      messages: [
-        { role: "user", content: prompt }
-      ]
+      model,
+      keep_alive: "2m",
+      // keep the model loaded for 2 minutes
+      messages: [{ role: "user", content: message }],
+      options: {
+        temperature: 0.7,
+        num_ctx: 4096,
+        repeat_penalty: 1.1
+      }
     });
-    return response.message.content;
+    return response;
   } catch (err) {
     console.error("OllamaChat error:", err);
-    return "Error talking to LLM: " + String(err);
+    return { error: String(err) };
+  }
+}
+async function* OllamaStream(message, model) {
+  var _a;
+  const stream = await index.chat({
+    model,
+    stream: true,
+    keep_alive: "30m",
+    messages: [{ role: "user", content: message }]
+  });
+  for await (const part of stream) {
+    yield ((_a = part.message) == null ? void 0 : _a.content) ?? "";
   }
 }
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 let win = null;
 function createWindow() {
+  const isDev = !!process.env.VITE_DEV_SERVER_URL || !!process.env.ELECTRON_RENDERER_URL;
   win = new BrowserWindow({
-    width: 1e3,
-    height: 700,
+    width: 1024,
+    height: 720,
+    minWidth: 820,
+    minHeight: 560,
+    backgroundColor: "#0f1115",
+    autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, "preload.js")
+      preload: join(__dirname, "preload.mjs"),
+      contextIsolation: true,
+      nodeIntegration: false
     }
   });
-  if (process.env.NODE_ENV === "development") {
-    win.loadURL("http://localhost:5173");
-    win.webContents.openDevTools();
+  if (isDev && (process.env.VITE_DEV_SERVER_URL || process.env.ELECTRON_RENDERER_URL)) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL || process.env.ELECTRON_RENDERER_URL);
   } else {
     win.loadFile(join(__dirname, "../dist/index.html"));
   }
-  win.on("closed", () => {
-    win = null;
-  });
 }
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  ipcMain.handle("chat:ask", async (_e, { message, model }) => {
+    try {
+      return await OllamaChat(message, model);
+    } catch (err) {
+      console.error(err);
+      return { error: String(err) };
+    }
+  });
+  ipcMain.on("chat:stream", async (e, { message, model }) => {
+    try {
+      for await (const chunk of OllamaStream(message, model)) {
+        e.sender.send("chat:chunk", chunk);
+      }
+      e.sender.send("chat:done");
+    } catch (err) {
+      e.sender.send("chat:error", String(err));
+    }
+  });
+  createWindow();
+});
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
-});
-ipcMain.handle("chat:ask", async (_event, message) => {
-  try {
-    const response = await OllamaChat(message);
-    return response;
-  } catch (err) {
-    console.error(err);
-    return { error: String(err) };
-  }
 });
