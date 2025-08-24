@@ -6,30 +6,15 @@ import { spawn } from 'child_process';
 import https from 'https';
 import crypto from 'crypto';
 
-// ---------- CONFIG: set these to your actual files ----------
-/**
- * Choose ONE of the two strategies below:
- * 
- * A) SHIP WITH APP (no download): Put files under project ./resources/ and build with electron-builder (see notes below).
- *    - Leave URLs empty; we'll load from resources.
- * 
- * B) DOWNLOAD ON FIRST RUN (smaller installer): Provide URLs + SHA256 for the two files below.
- *    - We'll save to userData and verify checksums.
- */
-
-// llama.cpp server binary (Windows): e.g., CUDA or CPU build .exe
 const LLAMA_SERVER_URL = ''; // 'https://example.com/llama-server-cuda-win64.exe'
 const LLAMA_SERVER_SHA256 = 'REPLACE_WITH_REAL_SHA256';
 
-// GGUF model (quantized 7B/8B): e.g., Llama-3.1-8B-Instruct-Q4_K_M.gguf
 const MODEL_URL = ''; // 'https://example.com/models/llama3.1-8b-instruct-q4_K_M.gguf'
 const MODEL_SHA256 = 'REPLACE_WITH_REAL_SHA256';
 
-// Relative paths when shipped inside the app (recommended names)
 const RES_BIN_REL = 'resources/llama-server.exe';
 const RES_MODEL_REL = 'resources/models/llama3.1-8b-instruct-q4_K_M.gguf';
 
-// Relative paths when downloaded to userData (minimal nesting)
 const UD_BIN_REL = 'llama-server.exe';
 const UD_MODEL_REL = 'llama-model.gguf';
 
@@ -84,14 +69,12 @@ function download(url: string, outFile: string) {
 }
 
 async function ensureAssets(): Promise<{ bin: string; model: string }> {
-  // 1) Prefer packaged resources (zero download)
   const resBin = resPath(RES_BIN_REL);
   const resModel = resPath(RES_MODEL_REL);
   if (existsSync(resBin) && existsSync(resModel)) {
     return { bin: resBin, model: resModel };
   }
 
-  // 2) Otherwise, download to userData (only if URLs are provided)
   if (!LLAMA_SERVER_URL || !MODEL_URL) {
     const msg =
       'Model/binary not found in app resources and no download URLs provided.\n' +
@@ -103,7 +86,6 @@ async function ensureAssets(): Promise<{ bin: string; model: string }> {
   const udBin = userPath(UD_BIN_REL);
   const udModel = userPath(UD_MODEL_REL);
 
-  // If they already exist, verify checksum; if mismatch or missing, re-download.
   const needBin = !(existsSync(udBin) && (await safeCheck(udBin, LLAMA_SERVER_SHA256)));
   const needModel = !(existsSync(udModel) && (await safeCheck(udModel, MODEL_SHA256)));
 
@@ -146,7 +128,6 @@ async function safeCheck(file: string, expectedSha: string) {
 }
 
 async function startLlamaServer(bin: string, model: string): Promise<void> {
-  // Ensure executable bit on non-Windows (no-op on Windows)
   try { await fs.chmod(bin, 0o755); } catch {}
 
   const args = [
@@ -160,7 +141,6 @@ async function startLlamaServer(bin: string, model: string): Promise<void> {
   const proc = spawn(bin, args, { windowsHide: true, stdio: 'ignore' });
   proc.on('exit', (code) => console.log('llama-server exited', code));
 
-  // Wait until /v1/models responds
   await waitReady(`${baseUrl}/v1/models`, 20_000);
 }
 
@@ -251,10 +231,8 @@ app.whenReady().then(async () => {
     await dialog.showErrorBox('Startup error', String(e));
   }
 
-  // IPC: non-streaming (kept for compatibility if you still call invoke)
   ipcMain.handle('chat:ask', async (_e, { message }) => {
     try {
-      // simple non-streaming call (just for completeness)
       const res = await fetch(`${baseUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,7 +251,6 @@ app.whenReady().then(async () => {
     }
   });
 
-  // IPC: streaming
   ipcMain.on('chat:stream', async (e, { message }) => {
     try {
       for await (const chunk of llamaCppStream([
